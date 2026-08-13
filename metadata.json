@@ -1,0 +1,6 @@
+{
+  "name": "Game Hub - 60s Blitz Challenge",
+  "description": "A high-intensity 60-second reaction arcade game with live leaderboard, sound effects, customizable difficulty levels, and personalized player profiles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
