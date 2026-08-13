@@ -239,10 +239,33 @@ export function getRoomCodeFromURL(): string {
     if (room && room.trim()) {
       return room.trim().toUpperCase();
     }
+    if (window.location.hash.includes('room=')) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#\/?/, ''));
+      const hashRoom = hashParams.get('room');
+      if (hashRoom && hashRoom.trim()) {
+        return hashRoom.trim().toUpperCase();
+      }
+    }
   } catch {
     // Ignore
   }
   return 'PUBLIC-ROOM';
+}
+
+export function getShareableRoomURL(roomCode: string): string {
+  try {
+    let urlString = window.location.href;
+    // Automatically convert development preview domain (ais-dev-) to public share domain (ais-pre-)
+    // to prevent 403 Forbidden authentication errors when opened in standard browser windows
+    if (urlString.includes('ais-dev-')) {
+      urlString = urlString.replace('ais-dev-', 'ais-pre-');
+    }
+    const url = new URL(urlString);
+    url.searchParams.set('room', roomCode.toUpperCase());
+    return url.toString();
+  } catch {
+    return window.location.href;
+  }
 }
 
 export function setRoomCodeInURL(roomCode: string) {

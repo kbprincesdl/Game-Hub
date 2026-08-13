@@ -7,6 +7,7 @@ import { LeaderboardModal } from './components/LeaderboardModal';
 import { TutorialModal } from './components/TutorialModal';
 import { GameOverModal } from './components/GameOverModal';
 import { GameHubStats } from './components/GameHubStats';
+import { RoomModal } from './components/RoomModal';
 import {
   DifficultyLevel,
   GameStatus,
@@ -24,6 +25,7 @@ import {
   DIFFICULTY_PRESETS,
   savePlayerProfile,
   getRoomCodeFromURL,
+  getShareableRoomURL,
   setRoomCodeInURL,
   RoomBroadcast,
 } from './utils/storage';
@@ -38,7 +40,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(soundManager.getMuted());
 
   // Room & Multiplayer State
-  const [roomCode] = useState<string>(() => {
+  const [roomCode, setRoomCode] = useState<string>(() => {
     const code = getRoomCodeFromURL();
     setRoomCodeInURL(code);
     return code;
@@ -69,6 +71,7 @@ export default function App() {
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState<boolean>(false);
   const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
   const [isStatsOpen, setIsStatsOpen] = useState<boolean>(false);
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState<boolean>(false);
 
   // Final Results
   const [lastRank, setLastRank] = useState<number>(1);
@@ -112,11 +115,8 @@ export default function App() {
 
   // Share URL Room Invite Handler
   const handleShareRoom = () => {
-    try {
-      navigator.clipboard.writeText(window.location.href);
-    } catch {
-      // Fallback
-    }
+    soundManager.playButtonClick();
+    setIsRoomModalOpen(true);
   };
 
   // Trigger Ready Countdown before Game
@@ -577,6 +577,14 @@ export default function App() {
         onClose={() => setIsStatsOpen(false)}
         profile={profile}
         onUpdateProfile={setProfile}
+      />
+
+      {/* MODAL 5: MULTIPLAYER ROOM & PUBLIC LINK SHARE */}
+      <RoomModal
+        isOpen={isRoomModalOpen}
+        onClose={() => setIsRoomModalOpen(false)}
+        currentRoomCode={roomCode}
+        onRoomChange={(newCode) => setRoomCode(newCode)}
       />
     </div>
   );
