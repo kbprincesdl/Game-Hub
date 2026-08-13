@@ -1,6 +1,6 @@
-import React from 'react';
-import { Trophy, HelpCircle, Volume2, VolumeX, User, Zap, BarChart2 } from 'lucide-react';
-import { PlayerProfile, DifficultyLevel } from '../types';
+import React, { useState } from 'react';
+import { Trophy, HelpCircle, Volume2, VolumeX, User, Zap, BarChart2, Share2, RotateCcw, Check, Users } from 'lucide-react';
+import { PlayerProfile, DifficultyLevel, GameStatus } from '../types';
 import { soundManager } from '../utils/sound';
 import { DIFFICULTY_PRESETS } from '../utils/storage';
 
@@ -13,6 +13,10 @@ interface NavbarProps {
   onOpenProfile: () => void;
   onOpenStats: () => void;
   activeDifficulty?: DifficultyLevel;
+  roomCode: string;
+  gameStatus: GameStatus;
+  onQuickReplay: () => void;
+  onShareRoom: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -24,8 +28,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenProfile,
   onOpenStats,
   activeDifficulty,
+  roomCode,
+  gameStatus,
+  onQuickReplay,
+  onShareRoom,
 }) => {
+  const [copied, setCopied] = useState(false);
   const difficultyConfig = activeDifficulty ? DIFFICULTY_PRESETS[activeDifficulty] : null;
+
+  const handleCopyLink = () => {
+    soundManager.playButtonClick();
+    onShareRoom();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <header className="sticky top-0 z-30 w-full backdrop-blur-md bg-slate-900/80 border-b border-slate-800 text-slate-100 px-4 py-3 shadow-lg">
@@ -52,15 +68,43 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Center Active Difficulty badge if in game */}
-        {difficultyConfig && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/80 text-xs font-semibold">
-            <span className="text-slate-400">Mode:</span>
-            <span className={`px-2 py-0.5 rounded-md border text-[11px] font-bold uppercase ${difficultyConfig.badgeColor}`}>
-              {difficultyConfig.name} ({difficultyConfig.multiplier}x)
-            </span>
-          </div>
-        )}
+        {/* Center Room Share & Quick Replay Actions */}
+        <div className="flex items-center gap-2">
+          {/* Room URL Share Badge */}
+          <button
+            id="navbar-share-room-btn"
+            onClick={handleCopyLink}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 text-xs font-bold transition-all shadow-sm"
+            title="Share URL to play with friends in same room!"
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="hidden md:inline">Room:</span>
+            <span className="font-mono text-cyan-300 uppercase">{roomCode}</span>
+            {copied ? (
+              <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                <Check className="w-3 h-3 stroke-[3]" /> Copied Link!
+              </span>
+            ) : (
+              <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            )}
+          </button>
+
+          {/* Quick Replay / Reset Button when game is playing */}
+          {(gameStatus === 'PLAYING' || gameStatus === 'READY') && (
+            <button
+              id="navbar-quick-replay-btn"
+              onClick={() => {
+                soundManager.playButtonClick();
+                onQuickReplay();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition-all animate-pulse"
+              title="Restart game immediately & reset timer to 60s"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Timer</span>
+            </button>
+          )}
+        </div>
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">

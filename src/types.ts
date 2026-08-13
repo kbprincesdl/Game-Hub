@@ -60,6 +60,18 @@ export interface LeaderboardEntry {
   hits: number;
   date: string;
   timestamp: number;
+  roomCode?: string;
+}
+
+export interface RoomParticipant {
+  id: string;
+  playerName: string;
+  avatar: string;
+  score: number;
+  difficulty: DifficultyLevel;
+  status: 'PLAYING' | 'WAITING' | 'FINISHED';
+  timeRemaining?: number;
+  updatedAt: number;
 }
 
 export interface PlayerProfile {

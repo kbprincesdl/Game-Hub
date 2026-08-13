@@ -231,3 +231,52 @@ export function resetLeaderboard(): LeaderboardEntry[] {
   localStorage.removeItem(STORAGE_KEYS.LEADERBOARD);
   return getLeaderboard();
 }
+
+export function getRoomCodeFromURL(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room');
+    if (room && room.trim()) {
+      return room.trim().toUpperCase();
+    }
+  } catch {
+    // Ignore
+  }
+  return 'PUBLIC-ROOM';
+}
+
+export function setRoomCodeInURL(roomCode: string) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', roomCode.toUpperCase());
+    window.history.pushState({}, '', url.toString());
+  } catch {
+    // Ignore
+  }
+}
+
+// BroadcastChannel for instant cross-tab / multi-window synchronization
+export class RoomBroadcast {
+  private channel: BroadcastChannel | null = null;
+
+  constructor(roomCode: string, onMessage: (data: unknown) => void) {
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.channel = new BroadcastChannel(`gamehub_room_${roomCode}`);
+      this.channel.onmessage = (event) => {
+        onMessage(event.data);
+      };
+    }
+  }
+
+  public broadcast(payload: unknown) {
+    if (this.channel) {
+      this.channel.postMessage(payload);
+    }
+  }
+
+  public close() {
+    if (this.channel) {
+      this.channel.close();
+    }
+  }
+}

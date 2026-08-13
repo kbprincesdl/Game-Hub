@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Clock, Zap, Flame, AlertTriangle } from 'lucide-react';
+import { Clock, Zap, Flame, AlertTriangle, RotateCcw } from 'lucide-react';
 
 interface CountdownIndicatorProps {
   timeRemaining: number; // in seconds (e.g., 58.4)
@@ -8,6 +8,7 @@ interface CountdownIndicatorProps {
   combo: number;
   multiplier: number;
   isMultiplierActive?: boolean;
+  onQuickReplay?: () => void;
 }
 
 export const CountdownIndicator: React.FC<CountdownIndicatorProps> = ({
@@ -16,6 +17,7 @@ export const CountdownIndicator: React.FC<CountdownIndicatorProps> = ({
   combo,
   multiplier,
   isMultiplierActive = false,
+  onQuickReplay,
 }) => {
   const roundedTime = Math.max(0, timeRemaining);
   const percent = Math.max(0, Math.min(100, (roundedTime / totalTime) * 100));
@@ -102,8 +104,21 @@ export const CountdownIndicator: React.FC<CountdownIndicatorProps> = ({
         </div>
       </div>
 
-      {/* Multiplier & Combo Gauges */}
+      {/* Multiplier & Combo Gauges & Replay Button */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Replay / Reset Timer Button */}
+        {onQuickReplay && (
+          <button
+            id="countdown-reset-timer-btn"
+            onClick={onQuickReplay}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all shadow-sm active:scale-95"
+            title="Reset timer to 60s & restart game state"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Reset</span>
+          </button>
+        )}
+
         {/* Combo Gauge */}
         <div className="flex flex-col items-end">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Streak Combo</span>

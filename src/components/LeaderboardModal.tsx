@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, Medal, Search, X, RotateCcw, Flame, Target, Filter, UserCheck } from 'lucide-react';
+import { Trophy, Medal, Search, X, RotateCcw, Flame, Target, Filter, UserCheck, Download, FileSpreadsheet } from 'lucide-react';
 import { LeaderboardEntry, DifficultyLevel } from '../types';
 import { DIFFICULTY_PRESETS, resetLeaderboard } from '../utils/storage';
 import { soundManager } from '../utils/sound';
@@ -37,6 +37,33 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
       onRefreshEntries(refreshed);
       soundManager.playButtonClick();
     }
+  };
+
+  const handleExportCSV = () => {
+    soundManager.playButtonClick();
+    if (filteredEntries.length === 0) return;
+
+    const headers = ['Rank', 'Player Name', 'Avatar', 'Score', 'Accuracy (%)', 'Max Combo', 'Difficulty', 'Date', 'Room Code'];
+    const rows = filteredEntries.map((entry, index) => [
+      index + 1,
+      `"${(entry.playerName || '').replace(/"/g, '""')}"`,
+      `"${entry.avatar || ''}"`,
+      entry.score,
+      entry.accuracy,
+      entry.maxCombo,
+      entry.difficulty,
+      `"${entry.date}"`,
+      `"${entry.roomCode || 'GLOBAL'}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `GameHub_Scores_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -216,7 +243,18 @@ export const LeaderboardModal: React.FC<LeaderboardModalProps> = ({
             >
               <RotateCcw className="w-3.5 h-3.5" /> Reset Defaults
             </button>
-            <span>Total Records: {filteredEntries.length}</span>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExportCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold transition-all"
+                title="Download all high scores as a CSV file for Google Sheets / Excel"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Export CSV (Sheets)</span>
+              </button>
+              <span>Total Records: {filteredEntries.length}</span>
+            </div>
           </div>
         </motion.div>
       </div>

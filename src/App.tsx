@@ -23,6 +23,9 @@ import {
   addScoreToLeaderboard,
   DIFFICULTY_PRESETS,
   savePlayerProfile,
+  getRoomCodeFromURL,
+  setRoomCodeInURL,
+  RoomBroadcast,
 } from './utils/storage';
 import { soundManager } from './utils/sound';
 import { Play, RotateCcw, Trophy, HelpCircle, Flame, Target, Shield, Zap } from 'lucide-react';
@@ -33,6 +36,14 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(getLeaderboard());
   const [difficulty, setDifficulty] = useState<DifficultyLevel>(profile.favoriteDifficulty || 'MEDIUM');
   const [isMuted, setIsMuted] = useState<boolean>(soundManager.getMuted());
+
+  // Room & Multiplayer State
+  const [roomCode] = useState<string>(() => {
+    const code = getRoomCodeFromURL();
+    setRoomCodeInURL(code);
+    return code;
+  });
+  const roomBroadcasterRef = useRef<RoomBroadcast | null>(null);
 
   // Game Lifecycle State
   const [status, setStatus] = useState<GameStatus>('NAME_INPUT');
@@ -63,10 +74,49 @@ export default function App() {
   const [lastRank, setLastRank] = useState<number>(1);
   const [isNewHighScore, setIsNewHighScore] = useState<boolean>(false);
 
+  // Initialize Room Broadcasting for Cross-Tab / Multi-Window Live Multiplayer
+  useEffect(() => {
+    const broadcaster = new RoomBroadcast(roomCode, (data: unknown) => {
+      const payload = data as { type?: string; entry?: LeaderboardEntry };
+      if (payload && payload.type === 'NEW_SCORE_ENTRY') {
+        // Refresh leaderboard entries when another player in room finishes
+        setLeaderboard(getLeaderboard());
+      }
+    });
+    roomBroadcasterRef.current = broadcaster;
+    return () => broadcaster.close();
+  }, [roomCode]);
+
   // Audio Mute Handler
   const handleToggleMute = () => {
     const muted = soundManager.toggleMute();
     setIsMuted(muted);
+  };
+
+  // Quick Replay / Reset Timer Handler
+  const handleQuickReplay = useCallback(() => {
+    soundManager.playButtonClick();
+    setScore(0);
+    setHits(0);
+    setMisses(0);
+    setCombo(0);
+    setMaxCombo(0);
+    setTimeRemaining(60);
+    setTargets([]);
+    setFloatingTexts([]);
+    setParticles([]);
+    setIsMultiplierActive(false);
+    setStatus('READY');
+    setReadyCountdown(3);
+  }, []);
+
+  // Share URL Room Invite Handler
+  const handleShareRoom = () => {
+    try {
+      navigator.clipboard.writeText(window.location.href);
+    } catch {
+      // Fallback
+    }
   };
 
   // Trigger Ready Countdown before Game
@@ -378,12 +428,20 @@ export default function App() {
       maxCombo,
       hits,
       date: 'Just now',
+      roomCode,
     });
 
     setLeaderboard(updatedBoard);
     setLastRank(rank);
     setIsNewHighScore(isNewHighScore);
     setProfile(getPlayerProfile());
+
+    // Broadcast score entry to all windows/tabs sharing this URL room code
+    if (roomBroadcasterRef.current) {
+      roomBroadcasterRef.current.broadcast({
+        type: 'NEW_SCORE_ENTRY',
+      });
+    }
   };
 
   return (
@@ -398,6 +456,10 @@ export default function App() {
         onOpenProfile={() => setIsStatsOpen(true)}
         onOpenStats={() => setIsStatsOpen(true)}
         activeDifficulty={difficulty}
+        roomCode={roomCode}
+        gameStatus={status}
+        onQuickReplay={handleQuickReplay}
+        onShareRoom={handleShareRoom}
       />
 
       {/* Main Container */}
@@ -439,6 +501,7 @@ export default function App() {
               combo={combo}
               multiplier={DIFFICULTY_PRESETS[difficulty].multiplier * (isMultiplierActive ? 2 : 1)}
               isMultiplierActive={isMultiplierActive}
+              onQuickReplay={handleQuickReplay}
             />
 
             {/* Score HUD Header */}
