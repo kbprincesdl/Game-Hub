@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Target, Star, ShieldAlert, Clock, Zap, Ghost, X, Flame, Award, CheckCircle2 } from 'lucide-react';
+import { Target, Star, ShieldAlert, Clock, Zap, Ghost, X, Flame, Award, CheckCircle2, FileDown } from 'lucide-react';
 import { soundManager } from '../utils/sound';
 
 interface TutorialModalProps {
@@ -147,14 +147,24 @@ export const TutorialModal: React.FC<TutorialModalProps> = ({ isOpen, onClose })
           </div>
 
           {/* Footer Action */}
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center gap-2.5">
+            <a
+              href="/README.docx"
+              download="README.docx"
+              onClick={() => soundManager.playButtonClick()}
+              className="w-full sm:w-auto px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shrink-0"
+              title="Download documentation as a Microsoft Word (.docx) document"
+            >
+              <FileDown className="w-4 h-4 text-cyan-400" />
+              Download Readme (.docx)
+            </a>
             <button
               id="tutorial-confirm-btn"
               onClick={() => {
                 soundManager.playButtonClick();
                 onClose();
               }}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white font-extrabold text-sm uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2"
+              className="w-full flex-1 py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 hover:from-cyan-400 hover:to-indigo-400 text-white font-extrabold text-sm uppercase tracking-wider shadow-lg shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4" />
               Understood! Let's Blitz
