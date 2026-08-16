@@ -69,68 +69,16 @@ const STORAGE_KEYS = {
   SETTINGS: 'gamehub_settings',
 };
 
-const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [
-  {
-    id: 'sample-1',
-    playerName: 'CyberViper',
-    avatar: '⚡',
-    score: 8450,
-    difficulty: 'INSANE',
-    accuracy: 96,
-    maxCombo: 34,
-    hits: 68,
-    date: 'Today',
-    timestamp: Date.now() - 3600000,
-  },
-  {
-    id: 'sample-2',
-    playerName: 'AuraKnight',
-    avatar: '👑',
-    score: 6120,
-    difficulty: 'HARD',
-    accuracy: 94,
-    maxCombo: 28,
-    hits: 54,
-    date: 'Today',
-    timestamp: Date.now() - 7200000,
-  },
-  {
-    id: 'sample-3',
-    playerName: 'NovaRider',
-    avatar: '🔥',
-    score: 4890,
-    difficulty: 'MEDIUM',
-    accuracy: 91,
-    maxCombo: 22,
-    hits: 48,
-    date: 'Yesterday',
-    timestamp: Date.now() - 86400000,
-  },
-  {
-    id: 'sample-4',
-    playerName: 'PixelPulse',
-    avatar: '🤖',
-    score: 3500,
-    difficulty: 'EASY',
-    accuracy: 98,
-    maxCombo: 30,
-    hits: 42,
-    date: '2 days ago',
-    timestamp: Date.now() - 172800000,
-  },
-  {
-    id: 'sample-5',
-    playerName: 'ZenMaster',
-    avatar: '💎',
-    score: 3100,
-    difficulty: 'EASY',
-    accuracy: 95,
-    maxCombo: 24,
-    hits: 38,
-    date: '3 days ago',
-    timestamp: Date.now() - 259200000,
-  },
-];
+const DEFAULT_LEADERBOARD: LeaderboardEntry[] = [];
+
+// Helper to filter out legacy sample dummy bots
+export const isSampleBot = (entry: LeaderboardEntry): boolean => {
+  if (!entry) return true;
+  if (entry.id && entry.id.startsWith('sample-')) return true;
+  const dummyNames = ['cyberviper', 'auraknight', 'novarider', 'pixelpulse', 'zenmaster'];
+  if (dummyNames.includes((entry.playerName || '').trim().toLowerCase())) return true;
+  return false;
+};
 
 export function getPlayerProfile(): PlayerProfile {
   try {
@@ -169,26 +117,135 @@ export function getLeaderboard(): LeaderboardEntry[] {
     const raw = localStorage.getItem(STORAGE_KEYS.LEADERBOARD);
     if (raw) {
       const parsed: LeaderboardEntry[] = JSON.parse(raw);
-      if (parsed && parsed.length > 0) {
-        return parsed.sort((a, b) => b.score - a.score);
+      if (Array.isArray(parsed)) {
+        // Strip out all legacy dummy bots
+        const cleaned = parsed.filter((e) => !isSampleBot(e)).sort((a, b) => b.score - a.score);
+        return cleaned;
       }
     }
   } catch {
     // Ignore
   }
-  // Populate default if empty
-  saveLeaderboard(DEFAULT_LEADERBOARD);
-  return DEFAULT_LEADERBOARD;
+  return [];
 }
 
-export function saveLeaderboard(entries: LeaderboardEntry[]) {
+export function saveLeaderboard(entries: LeaderboardEntry[]): LeaderboardEntry[] {
   try {
-    const sorted = [...entries].sort((a, b) => b.score - a.score).slice(0, 50); // Keep top 50
+    // De-duplicate by ID or (playerName + score + timestamp), and filter out dummy bots
+    const seen = new Set<string>();
+    const unique: LeaderboardEntry[] = [];
+    for (const item of entries) {
+      if (isSampleBot(item)) continue;
+      const key = item.id || `${item.playerName}-${item.score}-${item.difficulty}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(item);
+      }
+    }
+    const sorted = unique.sort((a, b) => b.score - a.score).slice(0, 200);
     localStorage.setItem(STORAGE_KEYS.LEADERBOARD, JSON.stringify(sorted));
     return sorted;
   } catch {
-    return entries;
+    return entries.filter((e) => !isSampleBot(e));
   }
+}
+
+export interface PlayerBestRecord extends LeaderboardEntry {
+  matchCount: number;
+}
+
+/**
+ * Groups all leaderboard entries by player name and retains ONLY each player's highest/best score.
+ * Shows each unique player exactly once!
+ */
+export function getUniquePlayerLeaderboard(entries: LeaderboardEntry[]): PlayerBestRecord[] {
+  const map = new Map<string, PlayerBestRecord>();
+
+  for (const entry of entries) {
+    if (isSampleBot(entry)) continue;
+    const cleanName = (entry.playerName || '').trim();
+    if (!cleanName) continue;
+    const key = cleanName.toLowerCase();
+
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, {
+        ...entry,
+        playerName: cleanName,
+        matchCount: 1,
+      });
+    } else {
+      existing.matchCount += 1;
+      // Keep best (highest) score
+      if (entry.score > existing.score) {
+        map.set(key, {
+          ...entry,
+          playerName: cleanName,
+          matchCount: existing.matchCount,
+        });
+      }
+    }
+  }
+
+  return Array.from(map.values()).sort((a, b) => b.score - a.score);
+}
+
+export async function fetchScoresFromServer(roomCode?: string): Promise<LeaderboardEntry[]> {
+  try {
+    const query = roomCode ? `?room=${encodeURIComponent(roomCode)}` : '';
+    const res = await fetch(`/api/scores${query}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.allScores || data.scores)) {
+        const remoteScores: LeaderboardEntry[] = data.allScores || data.scores;
+        // Merge with local storage
+        const currentLocal = getLeaderboard();
+        const merged = saveLeaderboard([...remoteScores, ...currentLocal]);
+        return merged;
+      }
+    }
+  } catch (err) {
+    // Fallback to local
+    console.debug('Could not reach score server, using local store', err);
+  }
+  return getLeaderboard();
+}
+
+export async function submitScoreToServer(newEntry: Omit<LeaderboardEntry, 'id' | 'timestamp'>): Promise<{
+  updatedBoard: LeaderboardEntry[];
+  rank: number;
+  isNewHighScore: boolean;
+}> {
+  // 1. Immediately save locally for instantaneous response & offline capability
+  const localResult = addScoreToLeaderboard(newEntry);
+
+  // 2. Submit to server in background
+  try {
+    const res = await fetch('/api/scores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newEntry),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.scores)) {
+        const merged = saveLeaderboard(data.scores);
+        const uniqueRankings = getUniquePlayerLeaderboard(merged);
+        const playerRank = uniqueRankings.findIndex(
+          (e) => e.playerName.toLowerCase() === newEntry.playerName.toLowerCase()
+        ) + 1;
+        return {
+          updatedBoard: merged,
+          rank: playerRank > 0 ? playerRank : localResult.rank,
+          isNewHighScore: localResult.isNewHighScore,
+        };
+      }
+    }
+  } catch (err) {
+    console.debug('Failed to sync score to server, kept local', err);
+  }
+
+  return localResult;
 }
 
 export function addScoreToLeaderboard(newEntry: Omit<LeaderboardEntry, 'id' | 'timestamp'>): {
@@ -204,7 +261,10 @@ export function addScoreToLeaderboard(newEntry: Omit<LeaderboardEntry, 'id' | 't
   };
 
   const updatedBoard = saveLeaderboard([fullEntry, ...currentBoard]);
-  const rank = updatedBoard.findIndex((e) => e.id === fullEntry.id) + 1;
+  const uniqueRankings = getUniquePlayerLeaderboard(updatedBoard);
+  const rank = uniqueRankings.findIndex(
+    (e) => e.playerName.toLowerCase() === newEntry.playerName.toLowerCase()
+  ) + 1;
 
   // Check if this player beat their previous high score
   const profile = getPlayerProfile();
@@ -224,7 +284,23 @@ export function addScoreToLeaderboard(newEntry: Omit<LeaderboardEntry, 'id' | 't
     favoriteDifficulty: newEntry.difficulty,
   });
 
-  return { updatedBoard, rank, isNewHighScore };
+  return { updatedBoard, rank: rank > 0 ? rank : 1, isNewHighScore };
+}
+
+export async function resetLeaderboardRemote(): Promise<LeaderboardEntry[]> {
+  localStorage.removeItem(STORAGE_KEYS.LEADERBOARD);
+  try {
+    const res = await fetch('/api/scores/reset', { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.scores)) {
+        return saveLeaderboard(data.scores);
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return resetLeaderboard();
 }
 
 export function resetLeaderboard(): LeaderboardEntry[] {
@@ -254,15 +330,9 @@ export function getRoomCodeFromURL(): string {
 
 export function getShareableRoomURL(roomCode: string): string {
   try {
-    let urlString = window.location.href;
-    // Automatically convert development preview domain (ais-dev-) to public share domain (ais-pre-)
-    // to prevent 403 Forbidden authentication errors when opened in standard browser windows
-    if (urlString.includes('ais-dev-')) {
-      urlString = urlString.replace('ais-dev-', 'ais-pre-');
-    }
-    const url = new URL(urlString);
-    url.searchParams.set('room', roomCode.toUpperCase());
-    return url.toString();
+    const cleanCode = roomCode.toUpperCase();
+    const baseUrl = window.location.href.split('#')[0].split('?')[0];
+    return `${baseUrl}#room=${encodeURIComponent(cleanCode)}`;
   } catch {
     return window.location.href;
   }

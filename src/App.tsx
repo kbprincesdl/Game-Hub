@@ -21,16 +21,17 @@ import {
 import {
   getPlayerProfile,
   getLeaderboard,
-  addScoreToLeaderboard,
+  submitScoreToServer,
+  fetchScoresFromServer,
   DIFFICULTY_PRESETS,
   savePlayerProfile,
   getRoomCodeFromURL,
-  getShareableRoomURL,
   setRoomCodeInURL,
   RoomBroadcast,
 } from './utils/storage';
 import { soundManager } from './utils/sound';
-import { Play, RotateCcw, Trophy, HelpCircle, Flame, Target, Shield, Zap } from 'lucide-react';
+import { Trophy, Zap, Crown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
   // Persistence & User State
@@ -46,6 +47,7 @@ export default function App() {
     return code;
   });
   const roomBroadcasterRef = useRef<RoomBroadcast | null>(null);
+  const [liveToast, setLiveToast] = useState<{ id: string; message: string; subtext?: string } | null>(null);
 
   // Game Lifecycle State
   const [status, setStatus] = useState<GameStatus>('NAME_INPUT');
@@ -77,18 +79,47 @@ export default function App() {
   const [lastRank, setLastRank] = useState<number>(1);
   const [isNewHighScore, setIsNewHighScore] = useState<boolean>(false);
 
-  // Initialize Room Broadcasting for Cross-Tab / Multi-Window Live Multiplayer
+  // Initial and periodic sync from backend server for cross-device multiplayer
+  const syncScores = useCallback(async () => {
+    try {
+      const refreshed = await fetchScoresFromServer(roomCode);
+      setLeaderboard(refreshed);
+    } catch {
+      // Ignore
+    }
+  }, [roomCode]);
+
+  useEffect(() => {
+    // Initial fetch
+    syncScores();
+
+    // Periodic polling every 4 seconds to catch opponents finishing matches on different devices
+    const interval = setInterval(syncScores, 4000);
+    return () => clearInterval(interval);
+  }, [syncScores]);
+
+  // Initialize Room Broadcasting for local Cross-Tab synchronization
   useEffect(() => {
     const broadcaster = new RoomBroadcast(roomCode, (data: unknown) => {
-      const payload = data as { type?: string; entry?: LeaderboardEntry };
+      const payload = data as { type?: string; entry?: LeaderboardEntry; playerName?: string; score?: number };
       if (payload && payload.type === 'NEW_SCORE_ENTRY') {
-        // Refresh leaderboard entries when another player in room finishes
-        setLeaderboard(getLeaderboard());
+        syncScores();
+        if (payload.playerName && payload.score !== undefined) {
+          showLiveToast(`🎉 ${payload.playerName} scored ${payload.score.toLocaleString()} pts!`, `Room: ${roomCode}`);
+        }
       }
     });
     roomBroadcasterRef.current = broadcaster;
     return () => broadcaster.close();
-  }, [roomCode]);
+  }, [roomCode, syncScores]);
+
+  const showLiveToast = (message: string, subtext?: string) => {
+    const id = `toast-${Date.now()}`;
+    setLiveToast({ id, message, subtext });
+    setTimeout(() => {
+      setLiveToast((curr) => (curr?.id === id ? null : curr));
+    }, 4000);
+  };
 
   // Audio Mute Handler
   const handleToggleMute = () => {
@@ -413,13 +444,13 @@ export default function App() {
   };
 
   // Finalize Game Session & Save to Leaderboard
-  const handleEndGame = () => {
+  const handleEndGame = async () => {
     setStatus('GAME_OVER');
 
     const totalAttempts = hits + misses;
     const accuracy = totalAttempts > 0 ? Math.round((hits / totalAttempts) * 100) : 0;
 
-    const { updatedBoard, rank, isNewHighScore } = addScoreToLeaderboard({
+    const payload = {
       playerName: profile.name,
       avatar: profile.avatar,
       score,
@@ -429,23 +460,48 @@ export default function App() {
       hits,
       date: 'Just now',
       roomCode,
-    });
+    };
+
+    // Submit to server & local storage
+    const { updatedBoard, rank, isNewHighScore: isHighScore } = await submitScoreToServer(payload);
 
     setLeaderboard(updatedBoard);
     setLastRank(rank);
-    setIsNewHighScore(isNewHighScore);
+    setIsNewHighScore(isHighScore);
     setProfile(getPlayerProfile());
 
     // Broadcast score entry to all windows/tabs sharing this URL room code
     if (roomBroadcasterRef.current) {
       roomBroadcasterRef.current.broadcast({
         type: 'NEW_SCORE_ENTRY',
+        playerName: profile.name,
+        score,
       });
     }
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-slate-950">
+      {/* Live Multiplayer Toast */}
+      <AnimatePresence>
+        {liveToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -40 }}
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-2xl bg-slate-900/90 border border-cyan-500/50 shadow-2xl backdrop-blur-md flex items-center gap-3 text-xs"
+          >
+            <div className="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-300">
+              <Crown className="w-4 h-4 text-amber-400" />
+            </div>
+            <div>
+              <div className="font-bold text-white">{liveToast.message}</div>
+              {liveToast.subtext && <div className="text-[10px] text-cyan-300 font-mono">{liveToast.subtext}</div>}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Top Navigation */}
       <Navbar
         player={profile}
@@ -545,6 +601,7 @@ export default function App() {
         avatar={profile.avatar}
         rank={lastRank}
         isNewHighScore={isNewHighScore}
+        roomCode={roomCode}
         onPlayAgain={() => {
           setStatus('READY');
           setReadyCountdown(3);
@@ -562,6 +619,7 @@ export default function App() {
         onClose={() => setIsLeaderboardOpen(false)}
         entries={leaderboard}
         currentPlayerName={profile.name}
+        currentRoomCode={roomCode}
         onRefreshEntries={setLeaderboard}
       />
 
@@ -584,7 +642,11 @@ export default function App() {
         isOpen={isRoomModalOpen}
         onClose={() => setIsRoomModalOpen(false)}
         currentRoomCode={roomCode}
-        onRoomChange={(newCode) => setRoomCode(newCode)}
+        onRoomChange={(newCode) => {
+          setRoomCode(newCode);
+          setRoomCodeInURL(newCode);
+          fetchScoresFromServer(newCode).then(setLeaderboard);
+        }}
       />
     </div>
   );

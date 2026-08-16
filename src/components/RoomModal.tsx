@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Copy, Check, ExternalLink, X, ShieldCheck, Sparkles } from 'lucide-react';
+import { Users, Copy, Check, ExternalLink, X, ShieldCheck, Sparkles, Hash } from 'lucide-react';
 import { getShareableRoomURL, setRoomCodeInURL } from '../utils/storage';
 import { soundManager } from '../utils/sound';
 
@@ -17,7 +17,8 @@ export const RoomModal: React.FC<RoomModalProps> = ({
   currentRoomCode,
   onRoomChange,
 }) => {
-  const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [customRoomInput, setCustomRoomInput] = useState(currentRoomCode);
 
   const shareableUrl = getShareableRoomURL(currentRoomCode);
@@ -29,8 +30,19 @@ export const RoomModal: React.FC<RoomModalProps> = ({
     } catch {
       // Fallback
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleCopyCode = () => {
+    soundManager.playButtonClick();
+    try {
+      navigator.clipboard.writeText(currentRoomCode);
+    } catch {
+      // Fallback
+    }
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2500);
   };
 
   const handleJoinCustomRoom = (e: React.FormEvent) => {
@@ -72,25 +84,42 @@ export const RoomModal: React.FC<RoomModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-indigo-300 to-fuchsia-400">
-                Multiplayer Room Link
+                Multiplayer Room Center
               </h2>
-              <p className="text-xs text-slate-400">Share with friends to compete on the same board</p>
+              <p className="text-xs text-slate-400">Compete live with friends in the same room</p>
             </div>
           </div>
 
-          {/* Public Access Guarantee Alert Box */}
-          <div className="mb-6 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+          {/* Active Room Code Card */}
+          <div className="mb-6 p-4 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
             <div>
-              <span className="font-bold block text-emerald-200">Public Link Ready (No 403 Errors)</span>
-              This link uses the public domain (<code className="font-mono text-emerald-400">ais-pre-...</code>), allowing any player to open it directly in any browser window or mobile device.
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                <Hash className="w-3 h-3 text-cyan-400" /> Current Room Code
+              </span>
+              <span className="text-2xl font-black font-mono tracking-wider text-cyan-300">
+                {currentRoomCode}
+              </span>
             </div>
+            <button
+              onClick={handleCopyCode}
+              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95"
+            >
+              {copiedCode ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400 stroke-[3]" /> Code Copied!
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-cyan-400" /> Copy Code
+                </>
+              )}
+            </button>
           </div>
 
-          {/* Shareable Link Box */}
+          {/* Room URL Box */}
           <div className="space-y-2 mb-6">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Public Room Invite Link
+              Direct Room URL
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -103,23 +132,23 @@ export const RoomModal: React.FC<RoomModalProps> = ({
                 onClick={handleCopyLink}
                 className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white font-bold text-xs flex items-center gap-1.5 shrink-0 transition-all shadow-md active:scale-95"
               >
-                {copied ? (
+                {copiedLink ? (
                   <>
                     <Check className="w-4 h-4 stroke-[3]" /> Copied!
                   </>
                 ) : (
                   <>
-                    <Copy className="w-4 h-4" /> Copy
+                    <Copy className="w-4 h-4" /> Copy Link
                   </>
                 )}
               </button>
             </div>
           </div>
 
-          {/* Create/Join Custom Room Code */}
+          {/* Join or Switch Custom Room Code */}
           <form onSubmit={handleJoinCustomRoom} className="space-y-3 pt-4 border-t border-slate-800">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Switch / Create Custom Room Code
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Enter Room Code To Join
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -132,14 +161,14 @@ export const RoomModal: React.FC<RoomModalProps> = ({
               />
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs shrink-0 transition-all"
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shrink-0 transition-all shadow-md active:scale-95"
               >
-                Switch Room
+                Join Room
               </button>
             </div>
           </form>
 
-          {/* Open in New Tab Button */}
+          {/* Open in New Window Link */}
           <div className="mt-6 flex justify-end">
             <a
               href={shareableUrl}
@@ -147,7 +176,7 @@ export const RoomModal: React.FC<RoomModalProps> = ({
               rel="noopener noreferrer"
               className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
             >
-              Open in new browser window <ExternalLink className="w-3.5 h-3.5" />
+              Open room link in new browser window <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
         </motion.div>

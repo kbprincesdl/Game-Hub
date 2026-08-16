@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, RotateCcw, Target, Flame, Zap, Award, CheckCircle2, Sliders, ArrowRight } from 'lucide-react';
-import { DifficultyLevel, LeaderboardEntry } from '../types';
+import { Trophy, RotateCcw, Target, Flame, Award, Sliders, Users } from 'lucide-react';
+import { DifficultyLevel } from '../types';
 import { DIFFICULTY_PRESETS } from '../utils/storage';
 import { soundManager } from '../utils/sound';
 
@@ -16,6 +16,7 @@ interface GameOverModalProps {
   avatar: string;
   rank: number;
   isNewHighScore: boolean;
+  roomCode: string;
   onPlayAgain: () => void;
   onChangeDifficulty: () => void;
   onOpenLeaderboard: () => void;
@@ -32,6 +33,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
   avatar,
   rank,
   isNewHighScore,
+  roomCode,
   onPlayAgain,
   onChangeDifficulty,
   onOpenLeaderboard,
@@ -74,11 +76,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <h2 className="text-2xl font-black text-white tracking-tight">
               {playerName}'s Blitz Complete!
             </h2>
-            <div className="flex items-center justify-center gap-2 text-xs">
+            <div className="flex items-center justify-center gap-2 text-xs flex-wrap">
               <span className={`px-2.5 py-0.5 rounded-full border font-bold uppercase ${diffConfig.badgeColor}`}>
                 {diffConfig.name} ({diffConfig.multiplier}x)
               </span>
-              <span className="text-slate-400 font-semibold">• Local Rank #{rank}</span>
+              <span className="text-cyan-300 font-bold bg-cyan-950/60 border border-cyan-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Users className="w-3 h-3 text-cyan-400" /> Room: {roomCode}
+              </span>
             </div>
           </div>
 
@@ -88,7 +92,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               Final Score
             </div>
             <div className="text-4xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-400 tracking-tight">
-              {score.toLocaleString()}
+              {score.toLocaleString()} <span className="text-xl sm:text-2xl text-amber-500">pts</span>
             </div>
             <p className="text-xs text-slate-500 font-medium">
               Base points multiplied by {diffConfig.multiplier}x mode difficulty
@@ -115,10 +119,10 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
             <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1">
               <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400 uppercase">
-                <Award className="w-3.5 h-3.5 text-indigo-400" /> Rank
+                <Award className="w-3.5 h-3.5 text-indigo-400" /> Leaderboard
               </div>
               <div className="text-lg font-black text-indigo-300">#{rank}</div>
-              <div className="text-[10px] text-slate-500">Leaderboard</div>
+              <div className="text-[10px] text-slate-500">Rank</div>
             </div>
           </div>
 
@@ -130,7 +134,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                 soundManager.playGameStart();
                 onPlayAgain();
               }}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 hover:from-cyan-400 hover:via-indigo-400 hover:to-fuchsia-400 text-white font-extrabold text-base tracking-wider uppercase shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95"
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-500 via-indigo-500 to-fuchsia-500 hover:from-cyan-400 hover:via-indigo-400 hover:to-fuchsia-400 text-white font-extrabold text-base tracking-wider uppercase shadow-xl shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 cursor-pointer"
             >
               <RotateCcw className="w-5 h-5" /> Play Again (60s)
             </button>
@@ -138,13 +142,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={onChangeDifficulty}
-                className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Sliders className="w-4 h-4 text-cyan-400" /> Change Difficulty
               </button>
               <button
                 onClick={onOpenLeaderboard}
-                className="py-3 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+                className="py-3 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Trophy className="w-4 h-4 text-amber-400" /> View Scoreboard
               </button>
